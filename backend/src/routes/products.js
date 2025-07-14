@@ -23,41 +23,33 @@ console.log('Available client methods:', Object.keys(client));
 // API endpoint to search for items
 router.get('/search', async (req, res) => {
   try {
-    const response = await client.catalog.searchItems({
-      textFilter: 'milk',
-      cursor: '',
+    const squareResponse = await client.catalog.searchItems({
+      textFilter: req.query.query || 'milk',
+      cursor: req.query.cursor || '',
     });
 
-    let res = response
+    // Extract name and all variations with prices
+    const items = squareResponse.items?.map(item => {
+      const itemData = item.itemData;
+      
+      const variations = itemData.variations?.map(variation => ({
+        name: variation.itemVariationData.name,
+        price: variation.itemVariationData.priceMoney?.amount 
+          ? Number(variation.itemVariationData.priceMoney.amount)
+          : null
+      })) || [];
 
+      return {
+        name: itemData.name,
+        variations: variations
+      };
+    }) || [];
 
+    res.json(items);
 
-response.items.forEach(item => {
-  const itemData = item.itemData;
-
-  console.log('Item Name:', itemData.name);
-
-
-  // access variations inside itemData
-  if (itemData.variations) {
-  
-
-    itemData.variations.forEach(variation => {
-
-      const variationData = variation.itemVariationData;
-      console.log('Price (in cents):', variationData.priceMoney?.amount);
-
-    });
-  }
-});
-
-    
-    res.json(response.result); // send response once
   } catch (error) {
-    console.error('Error calling Square API:', error);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Failed to fetch catalog items' });
-    }
+    console.error('Search error:', error);
+    res.status(500).json({ error: 'Failed to search items' });
   }
 });
 
