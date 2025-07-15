@@ -1,0 +1,51 @@
+.app-container {
+  font-family: sans-serif;
+  padding: 20px;
+}
+
+.search-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.search-bar input {
+  padding: 8px;
+  font-size: 16px;
+  width: 280px;
+}
+
+.search-bar button {
+  padding: 8px 12px;
+  font-size: 16px;
+}
+
+.print-button {
+  background-color: #0078D7;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.error {
+  color: red;
+  margin-top: 10px;
+}
+
+.counter {
+  font-weight: bold;
+  margin-bottom: 12px;
+}
+
+.search-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.search-card {
+  background: #f9f9f9;
+  border: 1px solid #ccc;
+  padding: 12px;
+  border-radius: 6px;
+}

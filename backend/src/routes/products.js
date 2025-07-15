@@ -23,6 +23,7 @@ console.log('Available client methods:', Object.keys(client));
 // API endpoint to search for items
 router.get('/search', async (req, res) => {
   try {
+    
     const squareResponse = await client.catalog.searchItems({
       textFilter: req.query.query || 'milk',
       cursor: req.query.cursor || '',
@@ -32,8 +33,12 @@ router.get('/search', async (req, res) => {
     const items = squareResponse.items?.map(item => {
       const itemData = item.itemData;
       
+
       const variations = itemData.variations?.map(variation => ({
         name: variation.itemVariationData.name,
+        barcode: variation.itemVariationData?.upc || null,
+
+
         price: variation.itemVariationData.priceMoney?.amount 
           ? Number(variation.itemVariationData.priceMoney.amount)
           : null
@@ -41,7 +46,7 @@ router.get('/search', async (req, res) => {
 
       return {
         name: itemData.name,
-        variations: variations
+        variations: variations,
       };
     }) || [];
 
@@ -49,6 +54,7 @@ router.get('/search', async (req, res) => {
 
   } catch (error) {
     console.error('Search error:', error);
+    console.error('Full Square Error:', JSON.stringify(error, null, 2));
     res.status(500).json({ error: 'Failed to search items' });
   }
 });
