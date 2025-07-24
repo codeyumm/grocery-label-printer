@@ -12,9 +12,7 @@ const CatalogViewer = () => {
   const handleSearch = async () => {
     try {
       const res = await axios.get(`http://localhost:3000/api/products/search?query=${query}`);
-      console.log(res);
       setItems(res.data || []);
-      setSelectedItems([]); // Reset selection on new search
       setError('');
     } catch (err) {
       console.error(err);
@@ -33,7 +31,8 @@ const CatalogViewer = () => {
 
   return (
     <div className="app-container">
-      <h1>🛒 Shelf Label Printer</h1>
+      <h1 className="title">Royal India Grocers</h1>
+      <h1 className="title">🛒 Shelf Label Printer</h1>
 
       <div className="search-bar">
         <input
@@ -43,59 +42,62 @@ const CatalogViewer = () => {
           onChange={e => setQuery(e.target.value)}
         />
         <button onClick={handleSearch}>Search</button>
-        <button onClick={() => window.print()} className="print-button">🖨️ Print</button>
+        <button onClick={() => window.print()} className="print-button">Print</button>
       </div>
 
-      <p className="counter">Selected for printing: {selectedItems.length} / 32</p>
+      <p className="counter">Selected for printing: {selectedItems.reduce((t, i) => t + i.variations.length, 0)} / 32</p>
       {error && <p className="error">{error}</p>}
 
       <div className="search-results">
         {items.map((item, index) => {
           const isSelected = selectedItems.some(i => i.name === item.name);
+          const disableClick = !isSelected && selectedItems.reduce((t, i) => t + i.variations.length, 0) >= 32;
+
           return (
-            <div key={index} className="search-card">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => toggleSelect(item)}
-                  disabled={!isSelected && selectedItems.length >= 32}
-                />
-                Select
-              </label>
-              <h3>{item.name}</h3>
+            <div
+              key={index}
+              className={`search-card ${isSelected ? 'selected' : ''} ${disableClick ? 'disabled' : ''}`}
+              onClick={() => {
+                if (!disableClick || isSelected) toggleSelect(item);
+              }}
+            >
+              <div className="card-header">
+                <h3>{item.name}</h3>
+                {isSelected && <span className="badge">✔</span>}
+              </div>
               {item.variations.map((v, i) => (
-                <p key={i}>{v.name}${v.price / 100}</p>
+                <div key={i} className="variant">
+                  <p>{v.name}</p>
+                  <p className="price">${(v.price / 100).toFixed(2)}</p>
+                  <p className="barcode">{v.barcode}</p>
+                </div>
               ))}
-
-              {item.variations.map((v, i) => (
-                <p key={i}>{v.barcode}</p>
-
-              ))}
-              
             </div>
           );
         })}
       </div>
 
       {/* Print-only label grid */}
-<div id="printArea" className="label-grid">
-  {selectedItems.flatMap((item, itemIndex) =>
-    item.variations.map((variant, vIndex) => (
-      <div key={`label-${itemIndex}-${vIndex}`} className="label">
-        <strong>{item.name}</strong>
-        <p>${variant.price / 100}</p>
-        <p>{variant.barcode}</p>
+      <div id="printArea" className="label-grid">
+        {selectedItems.flatMap((item, itemIndex) =>
+          item.variations.map((variant, vIndex) => (
+            <div key={`label-${itemIndex}-${vIndex}`} className="label">
+               <div className="label-content">
+                    <strong>{item.name}</strong>
+                    <p>${(variant.price / 100).toFixed(2)}</p>
+                    <p>{variant.barcode}</p>
+                </div>
+            </div>
+          ))
+        )}
+
+        {/* Add blank labels to make up 32 total */}
+        {Array.from({
+          length: 32 - selectedItems.reduce((total, item) => total + item.variations.length, 0),
+        }).map((_, i) => (
+          <div key={`blank-${i}`} className="label print-only" />
+        ))}
       </div>
-    ))
-  )}
-
-  {/* Add blank labels only during print */}
-  {Array.from({ length: 32 - selectedItems.reduce((total, item) => total + item.variations.length, 0) }).map((_, i) => (
-    <div key={`blank-${i}`} className="label print-only" />
-  ))}
-</div>
-
     </div>
   );
 };
