@@ -40,10 +40,47 @@ const CatalogViewer = () => {
           value={query}
           placeholder="Search product..."
           onChange={e => setQuery(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSearch()}
         />
         <button onClick={handleSearch}>Search</button>
         <button onClick={() => window.print()} className="print-button">Print</button>
+        
       </div>
+
+      {selectedItems.length > 0 && (
+  <div className="selected-section">
+    <h3>Selected for Printing ({selectedItems.reduce((t, i) => t + i.variations.length, 0)} labels)</h3>
+    <div className="selected-items">
+      {selectedItems.map((item, index) => (
+        <div key={index} className="selected-card">
+          <div className="card-header">
+            <h4>{item.name}</h4>
+            <button 
+              className="remove-btn"
+              onClick={() => setSelectedItems(selectedItems.filter(i => i.name !== item.name))}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="variations-count">
+            {item.variations.map((v, i) => (
+              <div key={i} className="selected-variant">
+                <span>{v.name}</span>
+                <span className="price">${(v.price / 100).toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+    <button 
+      className="clear-all-btn"
+      onClick={() => setSelectedItems([])}
+    >
+      Clear All
+    </button>
+  </div>
+)}
 
       <p className="counter">Selected for printing: {selectedItems.reduce((t, i) => t + i.variations.length, 0)} / 32</p>
       {error && <p className="error">{error}</p>}
@@ -82,14 +119,16 @@ const CatalogViewer = () => {
         {selectedItems.flatMap((item, itemIndex) =>
           item.variations.map((variant, vIndex) => (
             <div key={`label-${itemIndex}-${vIndex}`} className="label">
-               <div className="label-content">
-                    <strong>{item.name}</strong>
-                    <p>${(variant.price / 100).toFixed(2)}</p>
-                    <p>{variant.barcode}</p>
-                </div>
+              <div className="label-content">
+                <strong>{item.name}</strong>
+                <p className="price">${(variant.price / 100).toFixed(2)}</p>
+                <p className="barcode">{variant.barcode}</p>
+              </div>
             </div>
           ))
         )}
+
+        
 
         {/* Add blank labels to make up 32 total */}
         {Array.from({

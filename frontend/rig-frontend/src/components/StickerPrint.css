@@ -1,74 +1,98 @@
-.label-grid {
-  display: none;
-}
+.label-grid {   
+  display: none; 
+}  
 
-.label {
-  width: 2in;
-  height: 1.25in;
-  border: 1px solid black;
-  font-size: 10pt;
-  box-sizing: border-box;
-  page-break-inside: avoid;
-  overflow: hidden;
+.label {   
+  width: 2in;   
+  height: 1.25in;   
+  border: 1px solid black;   
+  font-size: 10pt;   
+  box-sizing: border-box;   
+  page-break-inside: avoid;   
+  overflow: hidden;    
+  /* Flex container to center content vertically and horizontally */   
+  display: flex;   
+  justify-content: center;   
+  align-items: center;   
+  text-align: center;   
+  padding: 0; /* no padding here */ 
+}  
 
-  /* Flex container to center content vertically and horizontally */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  padding: 0; /* no padding here */
-}
+.label-content {   
+  display: block;    
+  /* breathing room above and below */   
+  margin-top: 0.15in;   
+  margin-bottom: 0.15in; 
+}  
 
-.label-content {
+/* Font size adjustments for label content */
+.label-content strong {
+  font-size: 12pt; /* Larger font for product name */
   display: block;
-
-  /* breathing room above and below */
-  margin-top: 0.15in;
-  margin-bottom: 0.15in;
+  margin-bottom: 2px;
+  line-height: 1.1; /* Tighter line spacing for multi-line names */
+  word-wrap: break-word; /* Break long words if needed */
+  hyphens: auto; /* Add hyphens for better breaks */
+  max-height: 0.6in; /* Limit height to prevent overwhelming the label */
+  overflow: hidden; /* Hide excess text if still too long */
 }
 
-.print-only {
-  display: none;
+.label-content p {
+  margin: 1px 0;
 }
 
-@media print {
-  body * {
-    visibility: hidden;
-  }
+.label-content .price {
+  font-size: 11pt; /* Slightly larger font for price */
+  font-weight: bold;
+}
 
-  #printArea,
-  #printArea * {
-    visibility: visible;
-  }
+.label-content .barcode {
+  font-size: 8pt; /* Smaller font for barcode */
+  font-family: 'Courier New', monospace;
+}
 
-  #printArea {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 8.5in;
-    height: 11in;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(4, 2in);
-    grid-auto-rows: 1.25in;
-    gap: 0;
-  }
+.print-only {   
+  display: none; 
+}  
 
-  .label {
-    /* ensure flex centering still applies */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    border: 1px solid black;
-  }
+@media print {   
+  body * {     
+    visibility: hidden;   
+  }    
 
-  .print-only {
-    display: block;
-  }
+  #printArea,   
+  #printArea * {     
+    visibility: visible;   
+  }    
 
-  .label-grid {
-    display: grid;
-  }
+  #printArea {     
+    position: absolute;     
+    top: 0;     
+    left: 0;     
+    width: 8.5in;     
+    height: 11in;     
+    margin: 0;     
+    padding: 0;     
+    display: grid;     
+    grid-template-columns: repeat(4, 2in);     
+    grid-auto-rows: 1.25in;     
+    gap: 0;   
+  }    
+
+  .label {     
+    /* ensure flex centering still applies */     
+    display: flex;     
+    justify-content: center;     
+    align-items: center;     
+    text-align: center;     
+    border: 1px solid black;   
+  }    
+
+  .print-only {     
+    display: block;   
+  }    
+
+  .label-grid {     
+    display: grid;   
+  } 
 }
