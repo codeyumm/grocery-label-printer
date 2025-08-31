@@ -3,7 +3,7 @@
 }  
 
 .label {   
-  width: 2in;   
+  width: 2.67in;   /* Wider labels for 3-column layout */
   height: 1.25in;   
   border: 1px solid black;   
   font-size: 10pt;   
@@ -20,14 +20,14 @@
 
 .label-content {   
   display: block;    
-  /* breathing room above and below */   
-  margin-top: 0.15in;   
-  margin-bottom: 0.15in; 
+  /* minimal margins to use more space */   
+  margin-top: 0.05in;   
+  margin-bottom: 0.05in; 
 }  
 
-/* Font size adjustments for label content */
+/* Font size adjustments for label content - larger fonts for wider labels */
 .label-content strong {
-  font-size: 11pt; /* Medium size for product name */
+  font-size: 14pt; /* Larger product name with extra width */
   display: -webkit-box;
   -webkit-line-clamp: 2; /* Limit to 2 lines */
   -webkit-box-orient: vertical;
@@ -35,19 +35,19 @@
   text-overflow: ellipsis;
   line-height: 1.1;
   word-wrap: break-word;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
   font-weight: bold;
 }
 
 .label-content .price {
-  font-size: 16pt; /* Maximized price - largest element */
+  font-size: 20pt; /* Much larger price with extra space */
   font-weight: bold;
   color: #000;
-  margin: 2px 0;
+  margin: 1px 0;
 }
 
 .label-content .barcode {
-  font-size: 7pt; /* Small barcode text */
+  font-size: 9pt; /* Slightly larger barcode - more readable */
   font-family: 'Courier New', monospace;
   color: #333;
   margin: 0;
@@ -72,7 +72,6 @@
   body {
     margin: 0 !important;
     padding: 0 !important;
-    overflow: hidden !important;
   }
 
   body * {     
@@ -85,7 +84,7 @@
   }    
 
   #printArea {     
-    position: fixed !important;     
+    position: absolute !important;     
     top: 0 !important;     
     left: 0 !important;     
     width: 8in !important;     
@@ -93,14 +92,9 @@
     margin: 0 !important;     
     padding: 0 !important;     
     display: grid !important;     
-    grid-template-columns: repeat(4, 2in) !important;     
+    grid-template-columns: repeat(3, 2.67in) !important;    
     grid-template-rows: repeat(8, 1.25in) !important;     
     gap: 0 !important;
-    page-break-inside: avoid !important;
-    page-break-after: avoid !important;
-    page-break-before: avoid !important;
-    break-inside: avoid !important;
-    overflow: hidden !important;
   }    
 
   .label {     
@@ -110,8 +104,7 @@
     text-align: center !important;     
     border: 1px solid black !important;
     box-sizing: border-box !important;
-    page-break-inside: avoid !important;
-    width: 2in !important;
+    width: 2.67in !important;
     height: 1.25in !important;
   }    
 
@@ -123,9 +116,7 @@
     display: none !important;   
   }
 
-  /* Hide everything else completely */
   .app-container > *:not(#printArea) {
     display: none !important;
-    visibility: hidden !important;
   }
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import './SearchView.css';
 import './StickerPrint.css';
+
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 const CatalogViewer = () => {
@@ -46,12 +47,10 @@ const CatalogViewer = () => {
   const handleBarcodeSearch = async () => {
     try {
       const res = await axios.get(`${BASE_URL}/api/products/search?query=${query}`);
-      // const res = await axios.get(`http://localhost:3000/api/products/search?query=${query}`);
-
       const foundItems = res.data || [];
       
       if (foundItems.length === 0) {
-        showFeedback(`Item not found - scan again`, 'error');
+        showFeedback(` Item not found - scan again`, 'error');
         setQuery(''); // Clear for next scan
         return;
       }
@@ -61,14 +60,14 @@ const CatalogViewer = () => {
       const isSelected = selectedItems.some(i => i.name === item.name);
       const currentLabelCount = selectedItems.reduce((t, i) => t + i.variations.length, 0);
       
-      if (!isSelected && currentLabelCount + item.variations.length <= 32) {
+      if (!isSelected && currentLabelCount + item.variations.length <= 24) {
         setSelectedItems([...selectedItems, item]);
         showFeedback(`✓ ${item.name} added (${item.variations.length} label${item.variations.length > 1 ? 's' : ''})`, 'success');
         
         // Play success sound
         playSound('success');
-      } else if (currentLabelCount + item.variations.length > 32) {
-        showFeedback(`Queue full - print current batch first`, 'error');
+      } else if (currentLabelCount + item.variations.length > 24) {
+        showFeedback(` Queue full - print current batch first`, 'error');
         playSound('error');
       } else {
         // Item already selected - add duplicate anyway
@@ -135,7 +134,7 @@ const CatalogViewer = () => {
     const isSelected = selectedItems.some(i => i.name === item.name);
     if (isSelected) {
       setSelectedItems(selectedItems.filter(i => i.name !== item.name));
-    } else if (selectedItems.reduce((t, i) => t + i.variations.length, 0) + item.variations.length <= 32) {
+    } else if (selectedItems.reduce((t, i) => t + i.variations.length, 0) + item.variations.length <= 24) {
       setSelectedItems([...selectedItems, item]);
     }
   };
@@ -153,7 +152,7 @@ const CatalogViewer = () => {
           onClick={() => setScanMode(!scanMode)}
           className={`mode-button ${scanMode ? 'active' : ''}`}
         >
-          {scanMode ? 'Scan Mode ON' : 'Enable Scan Mode'}
+          {scanMode ? ' Scan Mode ON' : ' Enable Scan Mode'}
         </button>
       </div>
 
@@ -178,13 +177,13 @@ const CatalogViewer = () => {
           <button onClick={handleManualSearch}>Search</button>
         )}
         <button onClick={() => window.print()} className="print-button">
-          Print ({currentLabelCount}/32)
+          Print ({currentLabelCount}/24)
         </button>
       </div>
 
       <p className="counter">
-        Selected for printing: {currentLabelCount} / 32
-        {scanMode && <span className="scan-status"> | 📱 Scan Mode Active</span>}
+        Selected for printing: {currentLabelCount} / 24
+        {scanMode && <span className="scan-status"> | Scan Mode Active</span>}
       </p>
       {error && <p className="error">{error}</p>}
 
@@ -229,7 +228,7 @@ const CatalogViewer = () => {
         <div className="search-results">
           {items.map((item, index) => {
             const isSelected = selectedItems.some(i => i.name === item.name);
-            const disableClick = !isSelected && currentLabelCount + item.variations.length > 32;
+            const disableClick = !isSelected && currentLabelCount + item.variations.length > 24;
 
             return (
               <div
@@ -270,9 +269,9 @@ const CatalogViewer = () => {
           ))
         )}
 
-        {/* Add blank labels to make up 32 total */}
+        {/* Add blank labels to make up 24 total */}
         {Array.from({
-          length: 32 - currentLabelCount,
+          length: 24 - currentLabelCount,
         }).map((_, i) => (
           <div key={`blank-${i}`} className="label print-only" />
         ))}
