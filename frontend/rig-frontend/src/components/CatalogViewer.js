@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import './SearchView.css';
 import './StickerPrint.css';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 const CatalogViewer = () => {
   const [query, setQuery] = useState('');
@@ -44,11 +45,13 @@ const CatalogViewer = () => {
 
   const handleBarcodeSearch = async () => {
     try {
-      const res = await axios.get(`http://localhost:3000/api/products/search?query=${query}`);
+      const res = await axios.get(`${BASE_URL}/api/products/search?query=${query}`);
+      // const res = await axios.get(`http://localhost:3000/api/products/search?query=${query}`);
+
       const foundItems = res.data || [];
       
       if (foundItems.length === 0) {
-        showFeedback(`❌ Item not found - scan again`, 'error');
+        showFeedback(`Item not found - scan again`, 'error');
         setQuery(''); // Clear for next scan
         return;
       }
@@ -65,7 +68,7 @@ const CatalogViewer = () => {
         // Play success sound
         playSound('success');
       } else if (currentLabelCount + item.variations.length > 32) {
-        showFeedback(`❌ Queue full - print current batch first`, 'error');
+        showFeedback(`Queue full - print current batch first`, 'error');
         playSound('error');
       } else {
         // Item already selected - add duplicate anyway
@@ -87,7 +90,7 @@ const CatalogViewer = () => {
       
     } catch (err) {
       console.error(err);
-      showFeedback(`❌ Search failed - try again`, 'error');
+      showFeedback(`Search failed - try again`, 'error');
       playSound('error');
       setQuery(''); // Clear for next scan
     }
@@ -95,7 +98,7 @@ const CatalogViewer = () => {
 
   const handleManualSearch = async () => {
     try {
-      const res = await axios.get(`http://localhost:3000/api/products/search?query=${query}`);
+      const res = await axios.get(`${BASE_URL}/api/products/search?query=${query}`);
       setItems(res.data || []);
       setError('');
     } catch (err) {
@@ -150,7 +153,7 @@ const CatalogViewer = () => {
           onClick={() => setScanMode(!scanMode)}
           className={`mode-button ${scanMode ? 'active' : ''}`}
         >
-          {scanMode ? '📱 Scan Mode ON' : '📱 Enable Scan Mode'}
+          {scanMode ? 'Scan Mode ON' : 'Enable Scan Mode'}
         </button>
       </div>
 
