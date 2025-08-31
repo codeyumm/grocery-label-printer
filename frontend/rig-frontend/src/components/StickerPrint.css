@@ -27,27 +27,31 @@
 
 /* Font size adjustments for label content */
 .label-content strong {
-  font-size: 13pt; /* Larger product name */
+  font-size: 11pt; /* Medium size for product name */
   display: -webkit-box;
   -webkit-line-clamp: 2; /* Limit to 2 lines */
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.2;
+  line-height: 1.1;
   word-wrap: break-word;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
   font-weight: bold;
 }
 
 .label-content .price {
-  font-size: 14pt; /* Larger, prominent price */
+  font-size: 16pt; /* Maximized price - largest element */
   font-weight: bold;
   color: #000;
-  margin: 0;
+  margin: 2px 0;
 }
 
 .label-content .barcode {
-  display: none; /* Hide barcode to focus on name and price */
+  font-size: 7pt; /* Small barcode text */
+  font-family: 'Courier New', monospace;
+  color: #333;
+  margin: 0;
+  line-height: 1;
 }
 
 .print-only {   
