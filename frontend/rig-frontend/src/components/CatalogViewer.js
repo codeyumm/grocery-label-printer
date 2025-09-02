@@ -8,6 +8,8 @@ const CatalogViewer = () => {
   const [query, setQuery] = useState('');
   const [items, setItems] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
+  const [editedNames, setEditedNames] = useState({}); // Track edited names
+  const [editingItem, setEditingItem] = useState(null); // Track which item is being edited
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState({ message: '', type: '', show: false });
   const [scanMode, setScanMode] = useState(false);
@@ -46,8 +48,6 @@ const CatalogViewer = () => {
   const handleBarcodeSearch = async () => {
     try {
       const res = await axios.get(`${BASE_URL}/api/products/search?query=${query}`);
-      // const res = await axios.get(`http://localhost:3000/api/products/search?query=${query}`);
-
       const foundItems = res.data || [];
       
       if (foundItems.length === 0) {
@@ -135,9 +135,41 @@ const CatalogViewer = () => {
     const isSelected = selectedItems.some(i => i.name === item.name);
     if (isSelected) {
       setSelectedItems(selectedItems.filter(i => i.name !== item.name));
+      // Remove edited name when item is deselected
+      const newEditedNames = { ...editedNames };
+      delete newEditedNames[item.name];
+      setEditedNames(newEditedNames);
     } else if (selectedItems.reduce((t, i) => t + i.variations.length, 0) + item.variations.length <= 32) {
       setSelectedItems([...selectedItems, item]);
     }
+  };
+
+  // Get display name (edited or original)
+  const getDisplayName = (item) => {
+    return editedNames[item.name] || item.name;
+  };
+
+  // Handle name editing
+  const handleNameEdit = (item, newName) => {
+    if (newName.trim() === '') {
+      // If empty, remove from edited names (use original)
+      const newEditedNames = { ...editedNames };
+      delete newEditedNames[item.name];
+      setEditedNames(newEditedNames);
+    } else {
+      setEditedNames({
+        ...editedNames,
+        [item.name]: newName.trim()
+      });
+    }
+  };
+
+  // Reset name to original
+  const resetName = (item) => {
+    const newEditedNames = { ...editedNames };
+    delete newEditedNames[item.name];
+    setEditedNames(newEditedNames);
+    setEditingItem(null);
   };
 
   const currentLabelCount = selectedItems.reduce((t, i) => t + i.variations.length, 0);
@@ -196,10 +228,55 @@ const CatalogViewer = () => {
             {selectedItems.map((item, index) => (
               <div key={index} className="selected-card">
                 <div className="card-header">
-                  <h4>{item.name}</h4>
+                  {editingItem === item.name ? (
+                    <div className="edit-name-container">
+                      <input
+                        type="text"
+                        value={getDisplayName(item)}
+                        onChange={(e) => handleNameEdit(item, e.target.value)}
+                        onBlur={() => setEditingItem(null)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') setEditingItem(null);
+                          if (e.key === 'Escape') {
+                            resetName(item);
+                          }
+                        }}
+                        className="edit-name-input"
+                        maxLength="30"
+                        autoFocus
+                      />
+                      <div className="edit-controls">
+                        <span className="char-counter">
+                          {getDisplayName(item).length}/30
+                        </span>
+                        <button 
+                          className="reset-btn"
+                          onClick={() => resetName(item)}
+                          title="Reset to original"
+                        >
+                          ↺
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <h4 
+                      onClick={() => setEditingItem(item.name)}
+                      className="editable-name"
+                      title="Click to edit name"
+                    >
+                      {getDisplayName(item)}
+                      {editedNames[item.name] && <span className="edited-indicator">✎</span>}
+                    </h4>
+                  )}
                   <button 
                     className="remove-btn"
-                    onClick={() => setSelectedItems(selectedItems.filter(i => i.name !== item.name))}
+                    onClick={() => {
+                      setSelectedItems(selectedItems.filter(i => i.name !== item.name));
+                      // Remove edited name when item is removed
+                      const newEditedNames = { ...editedNames };
+                      delete newEditedNames[item.name];
+                      setEditedNames(newEditedNames);
+                    }}
                   >
                     ✕
                   </button>
@@ -217,7 +294,11 @@ const CatalogViewer = () => {
           </div>
           <button 
             className="clear-all-btn"
-            onClick={() => setSelectedItems([])}
+            onClick={() => {
+              setSelectedItems([]);
+              setEditedNames({}); // Clear all edited names
+              setEditingItem(null);
+            }}
           >
             Clear All
           </button>
@@ -262,7 +343,7 @@ const CatalogViewer = () => {
           item.variations.map((variant, vIndex) => (
             <div key={`label-${itemIndex}-${vIndex}`} className="label">
                <div className="label-content">
-                    <strong>{item.name}</strong>
+                    <strong>{getDisplayName(item)}</strong>
                     <p className="price">${(variant.price / 100).toFixed(2)}</p>
                     <p className="barcode">{variant.barcode}</p>
                 </div>
