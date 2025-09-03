@@ -2,14 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import './SearchView.css';
 import './StickerPrint.css';
+
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 const CatalogViewer = () => {
   const [query, setQuery] = useState('');
   const [items, setItems] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
-  const [editedNames, setEditedNames] = useState({}); // Track edited names
-  const [editingItem, setEditingItem] = useState(null); // Track which item is being edited
+  const [editedNames, setEditedNames] = useState({});
+  const [editingItem, setEditingItem] = useState(null);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState({ message: '', type: '', show: false });
   const [scanMode, setScanMode] = useState(false);
@@ -23,12 +24,26 @@ const CatalogViewer = () => {
     }
   }, [scanMode]);
 
-  // Auto-detect barcode and process
+  // Auto-detect barcode and process with debug logging
   useEffect(() => {
+    let searchTimer;
+    
     if (scanMode && query.length >= 8 && /^\d+$/.test(query)) {
-      // Looks like a barcode - auto search and add
-      handleBarcodeSearch();
+      // Clear any existing timer
+      if (searchTimer) clearTimeout(searchTimer);
+      
+      // Wait for scanner to finish typing (200ms after last character)
+      searchTimer = setTimeout(() => {
+        console.log('Auto-search triggered for barcode:', query);
+        console.log('Barcode length:', query.length);
+        handleBarcodeSearch();
+      }, 200);
     }
+    
+    // Cleanup function
+    return () => {
+      if (searchTimer) clearTimeout(searchTimer);
+    };
   }, [query, scanMode]);
 
   const showFeedback = (message, type) => {
@@ -46,18 +61,32 @@ const CatalogViewer = () => {
   };
 
   const handleBarcodeSearch = async () => {
+    console.log('=== BARCODE SEARCH DEBUG ===');
+    console.log('Searching for barcode:', query);
+    console.log('Barcode length:', query.length);
+    console.log('Query type:', typeof query);
+    console.log('Raw query characters:', query.split('').map(char => char.charCodeAt(0)));
+    
     try {
-      const res = await axios.get(`${BASE_URL}/api/products/search?query=${query}`);
+      const searchQuery = query.trim(); // Remove any whitespace
+      console.log('Trimmed query:', searchQuery);
+      
+      const res = await axios.get(`${BASE_URL}/api/products/search?query=${searchQuery}`);
       const foundItems = res.data || [];
       
+      console.log('API Response:', foundItems);
+      console.log('Number of items found:', foundItems.length);
+      
       if (foundItems.length === 0) {
-        showFeedback(`Item not found - scan again`, 'error');
+        showFeedback(`❌ Item not found - scan again`, 'error');
         setQuery(''); // Clear for next scan
         return;
       }
 
       // Auto-add first item found
       const item = foundItems[0];
+      console.log('Selected item:', item.name);
+      
       const isSelected = selectedItems.some(i => i.name === item.name);
       const currentLabelCount = selectedItems.reduce((t, i) => t + i.variations.length, 0);
       
@@ -68,7 +97,7 @@ const CatalogViewer = () => {
         // Play success sound
         playSound('success');
       } else if (currentLabelCount + item.variations.length > 32) {
-        showFeedback(`Queue full - print current batch first`, 'error');
+        showFeedback(`❌ Queue full - print current batch first`, 'error');
         playSound('error');
       } else {
         // Item already selected - add duplicate anyway
@@ -89,8 +118,8 @@ const CatalogViewer = () => {
       }, 100);
       
     } catch (err) {
-      console.error(err);
-      showFeedback(`Search failed - try again`, 'error');
+      console.error('Search error:', err);
+      showFeedback(`❌ Search failed - try again`, 'error');
       playSound('error');
       setQuery(''); // Clear for next scan
     }
@@ -172,6 +201,17 @@ const CatalogViewer = () => {
     setEditingItem(null);
   };
 
+  // Format name for label (3 words per line)
+  const formatNameForLabel = (name) => {
+    const words = name.split(' ');
+    if (words.length <= 3) return name;
+    
+    const firstLine = words.slice(0, 3).join(' ');
+    const secondLine = words.slice(3).join(' ');
+    
+    return `${firstLine}\n${secondLine}`;
+  };
+
   const currentLabelCount = selectedItems.reduce((t, i) => t + i.variations.length, 0);
 
   return (
@@ -204,10 +244,20 @@ const CatalogViewer = () => {
           placeholder={scanMode ? "Scan barcode here..." : "Search product..."}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && !scanMode && handleManualSearch()}
+          onFocus={scanMode ? () => setQuery('') : undefined} // Clear on focus in scan mode
           className={scanMode ? 'scan-input' : ''}
         />
         {!scanMode && (
           <button onClick={handleManualSearch}>Search</button>
+        )}
+        {scanMode && (
+          <button 
+            onClick={() => setQuery('')}
+            className="clear-input-btn"
+            type="button"
+          >
+            Clear
+          </button>
         )}
         <button onClick={() => window.print()} className="print-button">
           Print ({currentLabelCount}/32)
@@ -343,7 +393,9 @@ const CatalogViewer = () => {
           item.variations.map((variant, vIndex) => (
             <div key={`label-${itemIndex}-${vIndex}`} className="label">
                <div className="label-content">
-                    <strong>{getDisplayName(item)}</strong>
+                    <strong style={{whiteSpace: 'pre-line'}}>
+                      {formatNameForLabel(getDisplayName(item))}
+                    </strong>
                     <p className="price">${(variant.price / 100).toFixed(2)}</p>
                     <p className="barcode">{variant.barcode}</p>
                 </div>
