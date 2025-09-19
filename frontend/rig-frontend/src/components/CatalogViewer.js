@@ -14,8 +14,24 @@ const CatalogViewer = () => {
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState({ message: '', type: '', show: false });
   const [scanMode, setScanMode] = useState(false);
+  const [currentStore, setCurrentStore] = useState('');
+  const [storeName, setStoreName] = useState('');
   const inputRef = useRef(null);
   const feedbackTimeoutRef = useRef(null);
+
+  // Store configuration
+  const storeConfig = {
+    erinmills: { name: 'Royal India Grocers - Erin Mills', color: '#007bff' },
+    castlemore: { name: 'Royal India Grocers - Castlemore', color: '#28a745' }
+  };
+
+  // Detect store from URL parameters
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const store = urlParams.get('store') || 'erinmills'; // default to erinmills
+    setCurrentStore(store);
+    setStoreName(storeConfig[store]?.name || 'Royal India Grocers');
+  }, []);
 
   // Auto-focus input for scanner
   useEffect(() => {
@@ -35,6 +51,7 @@ const CatalogViewer = () => {
       // Wait for scanner to finish typing (200ms after last character)
       searchTimer = setTimeout(() => {
         console.log('Auto-search triggered for barcode:', query);
+        console.log('Store:', currentStore);
         console.log('Barcode length:', query.length);
         handleBarcodeSearch();
       }, 200);
@@ -44,7 +61,7 @@ const CatalogViewer = () => {
     return () => {
       if (searchTimer) clearTimeout(searchTimer);
     };
-  }, [query, scanMode]);
+  }, [query, scanMode, currentStore]);
 
   const showFeedback = (message, type) => {
     if (feedbackTimeoutRef.current) {
@@ -61,8 +78,14 @@ const CatalogViewer = () => {
   };
 
   const handleBarcodeSearch = async () => {
+    if (!currentStore) {
+      showFeedback('Store not selected', 'error');
+      return;
+    }
+
     console.log('=== BARCODE SEARCH DEBUG ===');
-    console.log("---", BASE_URL);
+    console.log("Base URL:", BASE_URL);
+    console.log("Current Store:", currentStore);
     console.log('Searching for barcode:', query);
     console.log('Barcode length:', query.length);
     console.log('Query type:', typeof query);
@@ -72,14 +95,14 @@ const CatalogViewer = () => {
       const searchQuery = query.trim(); // Remove any whitespace
       console.log('Trimmed query:', searchQuery);
       
-      const res = await axios.get(`${BASE_URL}/api/products/search?query=${searchQuery}`);
+      const res = await axios.get(`${BASE_URL}/api/stores/${currentStore}/products/search?query=${searchQuery}`);
       const foundItems = res.data || [];
       
       console.log('API Response:', foundItems);
       console.log('Number of items found:', foundItems.length);
       
       if (foundItems.length === 0) {
-        showFeedback(`Item not found - scan again`, 'error');
+        showFeedback(`Item not found in ${storeConfig[currentStore]?.name} - scan again`, 'error');
         setQuery(''); // Clear for next scan
         return;
       }
@@ -93,7 +116,7 @@ const CatalogViewer = () => {
       
       if (!isSelected && currentLabelCount + item.variations.length <= 32) {
         setSelectedItems([...selectedItems, item]);
-        showFeedback(` ${item.name} added (${item.variations.length} label${item.variations.length > 1 ? 's' : ''})`, 'success');
+        showFeedback(`${item.name} added (${item.variations.length} label${item.variations.length > 1 ? 's' : ''})`, 'success');
         
         // Play success sound
         playSound('success');
@@ -127,8 +150,13 @@ const CatalogViewer = () => {
   };
 
   const handleManualSearch = async () => {
+    if (!currentStore) {
+      setError('Store not selected');
+      return;
+    }
+
     try {
-      const res = await axios.get(`${BASE_URL}/api/products/search?query=${query}`);
+      const res = await axios.get(`${BASE_URL}/api/stores/${currentStore}/products/search?query=${query}`);
       setItems(res.data || []);
       setError('');
     } catch (err) {
@@ -213,12 +241,39 @@ const CatalogViewer = () => {
     return `${firstLine}\n${secondLine}`;
   };
 
+  // Switch store function
+  const switchStore = (storeId) => {
+    const newUrl = `${window.location.pathname}?store=${storeId}`;
+    window.location.href = newUrl;
+  };
+
   const currentLabelCount = selectedItems.reduce((t, i) => t + i.variations.length, 0);
 
   return (
     <div className="app-container">
-      <h1 className="title">Royal India Grocers</h1>
-      <h1 className="title">🛒 Shelf Label Printer</h1>
+      {/* Store Header */}
+      <div className="store-header" style={{ borderBottomColor: storeConfig[currentStore]?.color }}>
+        <h1 className="title">{storeName}</h1>
+        <h1 className="title">🛒 Shelf Label Printer</h1>
+        
+        {/* Store Switcher */}
+        <div className="store-switcher">
+          <button 
+            onClick={() => switchStore('erinmills')}
+            className={`store-button ${currentStore === 'erinmills' ? 'active' : ''}`}
+            style={{ backgroundColor: currentStore === 'erinmills' ? storeConfig.erinmills.color : 'transparent' }}
+          >
+            Erin Mills
+          </button>
+          <button 
+            onClick={() => switchStore('castlemore')}
+            className={`store-button ${currentStore === 'castlemore' ? 'active' : ''}`}
+            style={{ backgroundColor: currentStore === 'castlemore' ? storeConfig.castlemore.color : 'transparent' }}
+          >
+            Castlemore
+          </button>
+        </div>
+      </div>
 
       {/* Scanning Mode Toggle */}
       <div className="scan-mode-toggle">
@@ -242,7 +297,7 @@ const CatalogViewer = () => {
           ref={inputRef}
           type="text"
           value={query}
-          placeholder={scanMode ? "Scan barcode here..." : "Search product..."}
+          placeholder={scanMode ? `Scan barcode here (${currentStore})...` : "Search product..."}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && !scanMode && handleManualSearch()}
           onFocus={scanMode ? () => setQuery('') : undefined} // Clear on focus in scan mode
@@ -267,7 +322,7 @@ const CatalogViewer = () => {
 
       <p className="counter">
         Selected for printing: {currentLabelCount} / 32
-        {scanMode && <span className="scan-status"> | 📱 Scan Mode Active</span>}
+        {scanMode && <span className="scan-status"> | 📱 Scan Mode Active ({currentStore})</span>}
       </p>
       {error && <p className="error">{error}</p>}
 
