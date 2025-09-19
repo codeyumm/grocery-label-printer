@@ -3,7 +3,7 @@ import axios from 'axios';
 import './SearchView.css';
 import './StickerPrint.css';
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+const BASE_URL = process.env.REACT_APP_BASE_URL || 'http://5.161.116.2';
 
 const CatalogViewer = () => {
   const [query, setQuery] = useState('');
@@ -62,6 +62,7 @@ const CatalogViewer = () => {
 
   const handleBarcodeSearch = async () => {
     console.log('=== BARCODE SEARCH DEBUG ===');
+    console.log("---", BASE_URL);
     console.log('Searching for barcode:', query);
     console.log('Barcode length:', query.length);
     console.log('Query type:', typeof query);
@@ -78,7 +79,7 @@ const CatalogViewer = () => {
       console.log('Number of items found:', foundItems.length);
       
       if (foundItems.length === 0) {
-        showFeedback(`❌ Item not found - scan again`, 'error');
+        showFeedback(`Item not found - scan again`, 'error');
         setQuery(''); // Clear for next scan
         return;
       }
@@ -92,17 +93,17 @@ const CatalogViewer = () => {
       
       if (!isSelected && currentLabelCount + item.variations.length <= 32) {
         setSelectedItems([...selectedItems, item]);
-        showFeedback(`✓ ${item.name} added (${item.variations.length} label${item.variations.length > 1 ? 's' : ''})`, 'success');
+        showFeedback(` ${item.name} added (${item.variations.length} label${item.variations.length > 1 ? 's' : ''})`, 'success');
         
         // Play success sound
         playSound('success');
       } else if (currentLabelCount + item.variations.length > 32) {
-        showFeedback(`❌ Queue full - print current batch first`, 'error');
+        showFeedback(`Queue full - print current batch first`, 'error');
         playSound('error');
       } else {
         // Item already selected - add duplicate anyway
         setSelectedItems([...selectedItems, item]);
-        showFeedback(`✓ ${item.name} added again`, 'success');
+        showFeedback(`${item.name} added again`, 'success');
         playSound('success');
       }
       
@@ -119,7 +120,7 @@ const CatalogViewer = () => {
       
     } catch (err) {
       console.error('Search error:', err);
-      showFeedback(`❌ Search failed - try again`, 'error');
+      showFeedback(`Search failed - try again`, 'error');
       playSound('error');
       setQuery(''); // Clear for next scan
     }

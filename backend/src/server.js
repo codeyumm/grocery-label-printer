@@ -16,13 +16,19 @@ const productRoutes = require('./routes/products')
 // get the express object
 const app = express();
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, '../frontend/rig-frontend/build')));
 
 // define the port
 const PORT = process.env.PORT || 3000;
 
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 // enable cors
-app.use(cors())
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+  credentials: true
+}))
 
 // Routes
 app.use('/api/products', productRoutes);
@@ -34,5 +40,5 @@ app.get('/api/test-server', (req, res) => {
 
 // to start the server
 app.listen(PORT, () => {
-    console.log(`Server is running on ${process.env.BASE_URL}:${PORT}`)
+    console.log(`Server is running on :${PORT}`)
 })
