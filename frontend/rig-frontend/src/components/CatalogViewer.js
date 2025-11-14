@@ -19,6 +19,17 @@ const CatalogViewer = () => {
   const inputRef = useRef(null);
   const feedbackTimeoutRef = useRef(null);
 
+  // CSV Export states
+  const [csvData, setCsvData] = useState([]);
+  const [currentAisle, setCurrentAisle] = useState('');
+  const [currentSide, setCurrentSide] = useState('left');
+
+  // Bulk upload states
+  const [bulkMode, setBulkMode] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
+  const [processedResults, setProcessedResults] = useState(null);
+  const fileInputRef = useRef(null);
+
   // Store configuration
   const storeConfig = {
     erinmills: { name: 'Royal India Grocers - Erin Mills', color: '#007bff' },
@@ -28,7 +39,7 @@ const CatalogViewer = () => {
   // Detect store from URL parameters
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const store = urlParams.get('store') || 'erinmills'; // default to erinmills
+    const store = urlParams.get('store') || 'erinmills';
     setCurrentStore(store);
     setStoreName(storeConfig[store]?.name || 'Royal India Grocers');
   }, []);
@@ -45,10 +56,8 @@ const CatalogViewer = () => {
     let searchTimer;
     
     if (scanMode && query.length >= 8 && /^\d+$/.test(query)) {
-      // Clear any existing timer
       if (searchTimer) clearTimeout(searchTimer);
       
-      // Wait for scanner to finish typing (200ms after last character)
       searchTimer = setTimeout(() => {
         console.log('Auto-search triggered for barcode:', query);
         console.log('Store:', currentStore);
@@ -57,7 +66,6 @@ const CatalogViewer = () => {
       }, 200);
     }
     
-    // Cleanup function
     return () => {
       if (searchTimer) clearTimeout(searchTimer);
     };
@@ -70,11 +78,197 @@ const CatalogViewer = () => {
     
     setFeedback({ message, type, show: true });
     
-    // Auto-hide feedback after delay
     const delay = type === 'error' ? 4000 : 2000;
     feedbackTimeoutRef.current = setTimeout(() => {
       setFeedback(prev => ({ ...prev, show: false }));
     }, delay);
+  };
+
+  // CSV Export function
+  const exportCSV = () => {
+    if (csvData.length === 0) {
+      alert('No data to export');
+      return;
+    }
+
+    const headers = ['Timestamp', 'Store', 'Aisle', 'Side', 'Product Name', 'Barcode', 'Price'];
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => [
+        row.timestamp,
+        row.store,
+        row.aisle,
+        row.side,
+        `"${row.productName}"`,
+        row.barcode,
+        row.price
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `inventory_scan_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Function to add item to CSV data
+  const addToCSV = (item) => {
+    if (currentAisle) {
+      item.variations.forEach(variation => {
+        setCsvData(prev => [...prev, {
+          timestamp: new Date().toISOString(),
+          store: currentStore,
+          aisle: currentAisle,
+          side: currentSide,
+          productName: item.name,
+          barcode: variation.barcode || variation.name,
+          price: (variation.price / 100).toFixed(2)
+        }]);
+      });
+      console.log('Added to CSV:', item.name, 'Aisle:', currentAisle);
+    }
+  };
+
+  // Parse uploaded file (CSV or Excel)
+  const parseUploadedFile = async (file) => {
+    return new Promise((resolve, reject) => {
+      const fileType = file.name.toLowerCase();
+      
+      if (fileType.endsWith('.csv')) {
+        // Parse CSV using Papa Parse
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            // Simple CSV parsing - split by lines and comma
+            const text = e.target.result;
+            const lines = text.split('\n').filter(line => line.trim());
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+            
+            // Find barcode column
+            const barcodeIndex = headers.findIndex(h => 
+              h.includes('barcode') || h.includes('upc') || h.includes('code')
+            );
+            
+            if (barcodeIndex === -1) {
+              reject(new Error('No barcode column found. Expected column named "barcode", "upc", or "code"'));
+              return;
+            }
+            
+            const barcodes = lines.slice(1)
+              .map(line => line.split(',')[barcodeIndex])
+              .filter(barcode => barcode && barcode.trim())
+              .map(barcode => barcode.trim().replace(/['"]/g, ''));
+            
+            resolve(barcodes);
+          } catch (error) {
+            reject(error);
+          }
+        };
+        reader.readAsText(file);
+        
+      } else if (fileType.endsWith('.xlsx') || fileType.endsWith('.xls')) {
+        // Parse Excel using FileReader and basic parsing
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            // For demo purposes, let user know Excel parsing needs SheetJS
+            reject(new Error('Excel files not yet supported. Please use CSV format.'));
+          } catch (error) {
+            reject(error);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+        
+      } else {
+        reject(new Error('Unsupported file type. Please use CSV or Excel files.'));
+      }
+    });
+  };
+
+  // Process bulk barcodes
+  const processBulkBarcodes = async (barcodes) => {
+    const results = {
+      total: barcodes.length,
+      found: [],
+      notFound: [],
+      errors: []
+    };
+
+    setUploadProgress({ current: 0, total: barcodes.length });
+
+    for (let i = 0; i < barcodes.length; i++) {
+      const barcode = barcodes[i];
+      
+      try {
+        setUploadProgress({ current: i + 1, total: barcodes.length });
+        
+        const res = await axios.get(`${BASE_URL}/api/stores/${currentStore}/products/search?query=${barcode}`);
+        const foundItems = res.data || [];
+        
+        if (foundItems.length > 0) {
+          const item = foundItems[0];
+          results.found.push({
+            barcode,
+            item,
+            name: item.name,
+            variations: item.variations.length
+          });
+          
+          // Auto-add to selected items
+          const isAlreadySelected = selectedItems.some(i => i.name === item.name);
+          if (!isAlreadySelected) {
+            setSelectedItems(prev => [...prev, item]);
+            addToCSV(item);
+          }
+        } else {
+          results.notFound.push(barcode);
+        }
+        
+        // Small delay to prevent overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.error(`Error processing barcode ${barcode}:`, error);
+        results.errors.push({ barcode, error: error.message });
+      }
+    }
+
+    setUploadProgress(null);
+    setProcessedResults(results);
+    
+    showFeedback(
+      `Processed ${results.total} barcodes: ${results.found.length} found, ${results.notFound.length} not found`,
+      results.found.length > 0 ? 'success' : 'error'
+    );
+  };
+
+  // Handle file upload
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      showFeedback('Parsing file...', 'success');
+      const barcodes = await parseUploadedFile(file);
+      
+      if (barcodes.length === 0) {
+        showFeedback('No barcodes found in file', 'error');
+        return;
+      }
+      
+      showFeedback(`Found ${barcodes.length} barcodes. Processing...`, 'success');
+      await processBulkBarcodes(barcodes);
+      
+    } catch (error) {
+      console.error('File upload error:', error);
+      showFeedback(`File error: ${error.message}`, 'error');
+    }
+    
+    // Reset file input
+    event.target.value = '';
   };
 
   const handleBarcodeSearch = async () => {
@@ -83,58 +277,40 @@ const CatalogViewer = () => {
       return;
     }
 
-    console.log('=== BARCODE SEARCH DEBUG ===');
-    console.log("Base URL:", BASE_URL);
-    console.log("Current Store:", currentStore);
-    console.log('Searching for barcode:', query);
-    console.log('Barcode length:', query.length);
-    console.log('Query type:', typeof query);
-    console.log('Raw query characters:', query.split('').map(char => char.charCodeAt(0)));
-    
     try {
-      const searchQuery = query.trim(); // Remove any whitespace
-      console.log('Trimmed query:', searchQuery);
-      
+      const searchQuery = query.trim();
       const res = await axios.get(`${BASE_URL}/api/stores/${currentStore}/products/search?query=${searchQuery}`);
       const foundItems = res.data || [];
       
-      console.log('API Response:', foundItems);
-      console.log('Number of items found:', foundItems.length);
-      
       if (foundItems.length === 0) {
         showFeedback(`Item not found in ${storeConfig[currentStore]?.name} - scan again`, 'error');
-        setQuery(''); // Clear for next scan
+        setQuery('');
         return;
       }
 
-      // Auto-add first item found
       const item = foundItems[0];
-      console.log('Selected item:', item.name);
-      
       const isSelected = selectedItems.some(i => i.name === item.name);
       const currentLabelCount = selectedItems.reduce((t, i) => t + i.variations.length, 0);
       
       if (!isSelected && currentLabelCount + item.variations.length <= 32) {
         setSelectedItems([...selectedItems, item]);
+        addToCSV(item);
         showFeedback(`${item.name} added (${item.variations.length} label${item.variations.length > 1 ? 's' : ''})`, 'success');
-        
-        // Play success sound
         playSound('success');
       } else if (currentLabelCount + item.variations.length > 32) {
         showFeedback(`Queue full - print current batch first`, 'error');
         playSound('error');
       } else {
-        // Item already selected - add duplicate anyway
         setSelectedItems([...selectedItems, item]);
+        addToCSV(item);
         showFeedback(`${item.name} added again`, 'success');
         playSound('success');
       }
       
       setItems(foundItems);
-      setQuery(''); // Clear for next scan
+      setQuery('');
       setError('');
       
-      // Keep focus on input for continuous scanning
       setTimeout(() => {
         if (inputRef.current) {
           inputRef.current.focus();
@@ -145,7 +321,7 @@ const CatalogViewer = () => {
       console.error('Search error:', err);
       showFeedback(`Search failed - try again`, 'error');
       playSound('error');
-      setQuery(''); // Clear for next scan
+      setQuery('');
     }
   };
 
@@ -166,7 +342,6 @@ const CatalogViewer = () => {
   };
 
   const playSound = (type) => {
-    // Create audio feedback
     const context = new (window.AudioContext || window.webkitAudioContext)();
     const oscillator = context.createOscillator();
     const gainNode = context.createGain();
@@ -193,24 +368,21 @@ const CatalogViewer = () => {
     const isSelected = selectedItems.some(i => i.name === item.name);
     if (isSelected) {
       setSelectedItems(selectedItems.filter(i => i.name !== item.name));
-      // Remove edited name when item is deselected
       const newEditedNames = { ...editedNames };
       delete newEditedNames[item.name];
       setEditedNames(newEditedNames);
     } else if (selectedItems.reduce((t, i) => t + i.variations.length, 0) + item.variations.length <= 32) {
       setSelectedItems([...selectedItems, item]);
+      addToCSV(item);
     }
   };
 
-  // Get display name (edited or original)
   const getDisplayName = (item) => {
     return editedNames[item.name] || item.name;
   };
 
-  // Handle name editing
   const handleNameEdit = (item, newName) => {
     if (newName.trim() === '') {
-      // If empty, remove from edited names (use original)
       const newEditedNames = { ...editedNames };
       delete newEditedNames[item.name];
       setEditedNames(newEditedNames);
@@ -222,7 +394,6 @@ const CatalogViewer = () => {
     }
   };
 
-  // Reset name to original
   const resetName = (item) => {
     const newEditedNames = { ...editedNames };
     delete newEditedNames[item.name];
@@ -230,7 +401,6 @@ const CatalogViewer = () => {
     setEditingItem(null);
   };
 
-  // Format name for label (3 words per line)
   const formatNameForLabel = (name) => {
     const words = name.split(' ');
     if (words.length <= 3) return name;
@@ -241,7 +411,6 @@ const CatalogViewer = () => {
     return `${firstLine}\n${secondLine}`;
   };
 
-  // Switch store function
   const switchStore = (storeId) => {
     const newUrl = `${window.location.pathname}?store=${storeId}`;
     window.location.href = newUrl;
@@ -256,7 +425,6 @@ const CatalogViewer = () => {
         <h1 className="title">{storeName}</h1>
         <h1 className="title">🛒 Shelf Label Printer</h1>
         
-        {/* Store Switcher */}
         <div className="store-switcher">
           <button 
             onClick={() => switchStore('erinmills')}
@@ -275,15 +443,122 @@ const CatalogViewer = () => {
         </div>
       </div>
 
-      {/* Scanning Mode Toggle */}
-      <div className="scan-mode-toggle">
-        <button 
-          onClick={() => setScanMode(!scanMode)}
-          className={`mode-button ${scanMode ? 'active' : ''}`}
-        >
-          {scanMode ? 'Scan Mode ON' : 'Enable Scan Mode'}
-        </button>
+      {/* CSV Tracker */}
+      <div className="csv-tracker">
+        <div className="tracker-inputs">
+          <input
+            type="text"
+            value={currentAisle}
+            onChange={e => setCurrentAisle(e.target.value)}
+            placeholder="Aisle (e.g., A1, Dairy)"
+            className="aisle-input"
+            maxLength="10"
+          />
+          <select 
+            value={currentSide} 
+            onChange={e => setCurrentSide(e.target.value)}
+            className="side-select"
+          >
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+          <button 
+            onClick={exportCSV}
+            className="export-btn"
+            disabled={csvData.length === 0}
+          >
+            Export CSV ({csvData.length})
+          </button>
+          <button 
+            onClick={() => setCsvData([])}
+            className="clear-btn"
+            disabled={csvData.length === 0}
+          >
+            Clear Data
+          </button>
+        </div>
+        {currentAisle && (
+          <div className="current-tracking">
+            Tracking: {currentAisle} - {currentSide} side
+          </div>
+        )}
       </div>
+
+      {/* Bulk Upload Section */}
+      <div className="bulk-upload-section">
+        <div className="bulk-header">
+          <button 
+            onClick={() => setBulkMode(!bulkMode)}
+            className={`bulk-toggle ${bulkMode ? 'active' : ''}`}
+          >
+            {bulkMode ? 'Bulk Upload ON' : 'Enable Bulk Upload'}
+          </button>
+        </div>
+        
+        {bulkMode && (
+          <div className="bulk-controls">
+            <div className="upload-area">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={handleFileUpload}
+                className="file-input"
+                id="bulk-file-input"
+              />
+              <label htmlFor="bulk-file-input" className="file-label">
+                Choose CSV or Excel file with barcodes
+              </label>
+              <p className="file-hint">
+                File should have a column named "barcode", "upc", or "code"
+              </p>
+            </div>
+            
+            {uploadProgress && (
+              <div className="progress-container">
+                <div className="progress-bar">
+                  <div 
+                    className="progress-fill"
+                    style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+                  />
+                </div>
+                <span className="progress-text">
+                  Processing {uploadProgress.current} of {uploadProgress.total} barcodes...
+                </span>
+              </div>
+            )}
+            
+            {processedResults && (
+              <div className="bulk-results">
+                <h4>Bulk Processing Results:</h4>
+                <div className="results-summary">
+                  <span className="result-item success">Found: {processedResults.found.length}</span>
+                  <span className="result-item error">Not Found: {processedResults.notFound.length}</span>
+                  <span className="result-item warning">Errors: {processedResults.errors.length}</span>
+                </div>
+                <button 
+                  onClick={() => setProcessedResults(null)}
+                  className="clear-results-btn"
+                >
+                  Clear Results
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Mode Toggle */}
+      {!bulkMode && (
+        <div className="scan-mode-toggle">
+          <button 
+            onClick={() => setScanMode(!scanMode)}
+            className={`mode-button ${scanMode ? 'active' : ''}`}
+          >
+            {scanMode ? 'Scan Mode ON' : 'Enable Scan Mode'}
+          </button>
+        </div>
+      )}
 
       {/* Feedback Banner */}
       {feedback.show && (
@@ -292,37 +567,40 @@ const CatalogViewer = () => {
         </div>
       )}
 
-      <div className="search-bar">
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          placeholder={scanMode ? `Scan barcode here (${currentStore})...` : "Search product..."}
-          onChange={e => setQuery(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && !scanMode && handleManualSearch()}
-          onFocus={scanMode ? () => setQuery('') : undefined} // Clear on focus in scan mode
-          className={scanMode ? 'scan-input' : ''}
-        />
-        {!scanMode && (
-          <button onClick={handleManualSearch}>Search</button>
-        )}
-        {scanMode && (
-          <button 
-            onClick={() => setQuery('')}
-            className="clear-input-btn"
-            type="button"
-          >
-            Clear
+      {!bulkMode && (
+        <div className="search-bar">
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            placeholder={scanMode ? `Scan barcode here (${currentStore})...` : "Search product..."}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && !scanMode && handleManualSearch()}
+            onFocus={scanMode ? () => setQuery('') : undefined}
+            className={scanMode ? 'scan-input' : ''}
+          />
+          {!scanMode && (
+            <button onClick={handleManualSearch}>Search</button>
+          )}
+          {scanMode && (
+            <button 
+              onClick={() => setQuery('')}
+              className="clear-input-btn"
+              type="button"
+            >
+              Clear
+            </button>
+          )}
+          <button onClick={() => window.print()} className="print-button">
+            Print ({currentLabelCount}/32)
           </button>
-        )}
-        <button onClick={() => window.print()} className="print-button">
-          Print ({currentLabelCount}/32)
-        </button>
-      </div>
+        </div>
+      )}
 
       <p className="counter">
         Selected for printing: {currentLabelCount} / 32
         {scanMode && <span className="scan-status"> | 📱 Scan Mode Active ({currentStore})</span>}
+        {bulkMode && <span className="bulk-status"> | 📁 Bulk Upload Mode</span>}
       </p>
       {error && <p className="error">{error}</p>}
 
@@ -378,7 +656,6 @@ const CatalogViewer = () => {
                     className="remove-btn"
                     onClick={() => {
                       setSelectedItems(selectedItems.filter(i => i.name !== item.name));
-                      // Remove edited name when item is removed
                       const newEditedNames = { ...editedNames };
                       delete newEditedNames[item.name];
                       setEditedNames(newEditedNames);
@@ -402,7 +679,7 @@ const CatalogViewer = () => {
             className="clear-all-btn"
             onClick={() => {
               setSelectedItems([]);
-              setEditedNames({}); // Clear all edited names
+              setEditedNames({});
               setEditingItem(null);
             }}
           >
@@ -412,7 +689,7 @@ const CatalogViewer = () => {
       )}
 
       {/* Search Results - only show in manual mode */}
-      {!scanMode && (
+      {!scanMode && !bulkMode && (
         <div className="search-results">
           {items.map((item, index) => {
             const isSelected = selectedItems.some(i => i.name === item.name);
@@ -459,7 +736,6 @@ const CatalogViewer = () => {
           ))
         )}
 
-        {/* Add blank labels to make up 32 total */}
         {Array.from({
           length: 32 - currentLabelCount,
         }).map((_, i) => (

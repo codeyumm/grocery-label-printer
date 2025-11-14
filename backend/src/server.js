@@ -23,10 +23,17 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // enable cors
+// app.use(cors({
+//   origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+//   credentials: true
+// }))
+
+// for localhost test
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+  origin: ['http://localhost:3001', 'http://localhost:3000', 'http://localhost'],
   credentials: true
 }))
+
 
 // Routes - Single mounting point
 app.use('/api', productRoutes);
